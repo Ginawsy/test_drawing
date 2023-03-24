@@ -2,6 +2,7 @@
 <html>
   <head>
     <script src="docs-demo-timeline.js"></script>
+    <script type="module" src="./lib/imageloader.js"></script>
     <script src="https://unpkg.com/jspsych@7.1.2"></script>
     <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.0"></script>
     <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.0"></script>
@@ -10,22 +11,99 @@
     <link rel="stylesheet" href="docs-demo.css" type="text/css">
     <script src="https://unpkg.com/@jspsych-contrib/plugin-pipe"></script>
     <script src="https://cdn.jsdelivr.net/npm/onnxjs/dist/onnx.min.js"></script>
-  </head>
-  <body></body>
-  <script>
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.2.0/lib/p5.js"></script>
+    <script>var exports = {};</script>
 
+    <canvas id="myCanvas" width="224" height="224" style="border:1px solid #d3d3d3;"></canvas>
+  </head>
+
+  <body></body>
+
+  <script type = module>
+
+    //import {ImageLoader} from './loadimage.js';
+    //import * as THREE from './three.js/build/three.module.js';
+    import {wrappedNDArrayCtor} from './lib/ndarray.js';
+    import {subseq, divseq, assign} from './lib/ndarray-ops.js';
     const jsPsych = initJsPsych();
-    async function test(){
-    // Load our model.
+      // let list_input = [];
+      // let i;
+      // for (i=0; i<150528; i++){
+      //     list_input[i] = 0;
+      // };ImageLoader
+      //const imageLoader = new ImageLoader(224, 224);
+     // console.log(imageLoader);
+      //const imageData = await imageLoader.getImageData('img/Image1.png');
+
+    // Test1.
+    async function test() {
       const sess = new onnx.InferenceSession();
-      const loadingModelPromise = sess.loadModel("./AuDrA_trained.onnx");
-//       const input = new onnx.Tennsor(new Float32Arrray(28 * 28 * 3), 'float32', [1, 3, 28, 28])
-//       const outputMap = await sess.run([input]);
-//       const outputTensor = outputMap.values().next().value;
-//       console.log(`Output tensor: ${outputTensor.data}`)
-     }
+      await sess.loadModel("AuDrA_trained.onnx");
+
+      var c = document.getElementById("myCanvas");
+      var ctx = c.getContext("2d");
+      ctx.fillStyle = 'img/Image1.png';
+      ctx.fillRect(1, 3, 224, 224);
+      const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+      const { data, width, height } = imageData;
+      const dataTensor = wrappedNDArrayCtor(new Float32Array(data), [width, height, 4]);
+      const dataProcessedTensor = wrappedNDArrayCtor(new Float32Array(width * height * 3), [1, 3, width, height]);
+      assign(dataProcessedTensor.pick(0, 0, null, null), dataTensor.pick(null, null, 2));
+      assign(dataProcessedTensor.pick(0, 1, null, null), dataTensor.pick(null, null, 1));
+      assign(dataProcessedTensor.pick(0, 2, null, null), dataTensor.pick(null, null, 0));
+      divseq(dataProcessedTensor, 255);
+      subseq(dataProcessedTensor.pick(0, 0, null, null), 0.485);
+      subseq(dataProcessedTensor.pick(0, 1, null, null), 0.456);
+      subseq(dataProcessedTensor.pick(0, 2, null, null), 0.406);
+      divseq(dataProcessedTensor.pick(0, 0, null, null), 0.229);
+      divseq(dataProcessedTensor.pick(0, 1, null, null), 0.224);
+      divseq(dataProcessedTensor.pick(0, 2, null, null), 0.225);
+      const tensor = new Tensor(new Float32Array(3 * width * height), 'float32', [1, 3, width, height]);
+
+      const outputMap = await sess.run([tensor]);
+      const outputTensor = outputMap.values().next().value;
+      // const preprocessedData = preprocess(imgData.data, 224, 224);
+      // const input = new onnx.Tensor(preprocessedData, 'float32', [1, 3, 224, 224])
+      // const outputMap = await sess.run([input]);
+      // console.log(outputMap.values());
+      // const outputTensor = outputMap.values().next().value;
+      // console.log(`Output tensor: ${outputTensor.data}`)
+    }
     test()
-     
+    // Test2.
+    async function run() {
+      try {
+        const sess = new onnx.InferenceSession();
+        await sess.loadModel("AuDrA_trained.onnx");
+        const dims = [1, 3, 224, 224];
+        const size = dims[0] * dims[1] * dims[2] * dims[3];
+        const inputData = Float32Array.from({ length: size }, () => Math.random());
+        const feeds = { input1: new onnx.Tensor('float32', inputData, dims) };
+        const results = await session.run(feeds);
+          console.log(results.output1.data);
+        } catch (e) {
+          console.log(e);
+      }
+     }
+    run()
+
+    // Preprocess function
+    function preprocess(data, width, height) {
+        const dataFromImage = wrappedNDArrayCtor(new Float32Array(data), [width, height, 4]);
+        const dataProcessed = wrappedNDArrayCtor(new Float32Array(width * height * 3), [1, 3, height, width]);
+
+        // Normalize 0-255 to (-1)-1
+        divseq(dataFromImage, 128.0);
+        subseq(dataFromImage, 1.0);
+
+        // Realign imageData from [224*224*4] to the correct dimension [1*3*224*224].
+        assign(dataProcessed.pick(0, 0, null, null), dataFromImage.pick(null, null, 2));
+        assign(dataProcessed.pick(0, 1, null, null), dataFromImage.pick(null, null, 1));
+        assign(dataProcessed.pick(0, 2, null, null), dataFromImage.pick(null, null, 0));
+
+        return dataProcessed.data;
+    }
 //     async function updatePredictions(imagedata) {
 //       const input = new onnx.Tensor(new Base64(imagedata), "base64");
 
@@ -59,11 +137,5 @@
     };
     
     const timeline = [trial]
-
-    if (typeof jsPsych !== "undefined") {
-      jsPsych.run(generateDocsDemoTimeline(timeline));
-    } else {
-      document.body.innerHTML = '<div style="text-align:center; margin-top:50%; transform:translate(0,-50%);">You must be online to view the plugin demo.</div>';
-    }
   </script>
 </html>
