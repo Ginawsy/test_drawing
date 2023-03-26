@@ -16,6 +16,7 @@
     <script>var exports = {};</script>
 
     <canvas id="myCanvas" width="224" height="224" style="border:1px solid #d3d3d3;"></canvas>
+    <img src="img/Image1.png" id="image">
   </head>
 
   <body></body>
@@ -87,6 +88,28 @@
       }
      }
     run()
+    async function runOD() {
+            // Creat the session and load the pre-trained model
+            const session = new onnx.InferenceSession({
+                backendHint: 'webgl'
+            });
+
+            await session.loadModel("AuDrA_trained.onnx");
+
+            //Function to load image to Canvas and Convert it to Tensor
+            var preprocessedData;
+            function setup() {
+              createCanvas(224,224);
+              preprocessedData = loadImage();
+            }
+            const inputTensor = new onnx.Tensor(preprocessedData, 'float32', [1, 3, 244, 244]);
+
+            // Run model with Tensor inputs and get the result.
+            const outputMap = await session.run([inputTensor]);
+            const outputData = outputMap.values().next().value.data;
+            console.log(`model output tensor: ${outputData.data}.`);
+    }
+    runOD()
 
     // Preprocess function
     function preprocess(data, width, height) {
